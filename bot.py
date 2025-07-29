@@ -1,87 +1,245 @@
-# bot.py
+# bot.py - Phiên bản cải tiến (ĐÃ SỬA LỖI, KHÔNG DÙNG AI)
 from binance import Client
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import os
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 
 # Load config
 config = {
     "symbol": "DOGEUSDT",
     "interval": "5m",
-    "active_strategies": ["BREAKOUT", "RSI_REVERSAL", "SUPERTREND"]
+    "active_strategies": ["EMA_VWAP", "RSI_DIVERGENCE", "SUPERTREND_ATR", "MACD_SIGNAL", "BOLLINGER_BOUNCE"],
+    "risk_management": {
+        "max_signals_per_hour": 3,
+        "min_signal_gap_minutes": 15,
+        "enable_multi_timeframe": True,
+        "confirmation_required": True
+    },
+    "performance": {
+        "data_cache_minutes": 2,
+        "parallel_strategy_execution": True,
+        "adaptive_parameters": True
+    }
 }
 
 # Import utilities
 from utils.telegram import send_telegram
-from utils.data_fetcher import get_klines_df
+from utils.data_fetcher import get_klines_df, get_multi_timeframe_data
 from strategies.ema_vwap import strategy_ema_vwap
 from strategies.rsi_divergence import strategy_rsi_divergence
 from strategies.supertrend_atr import strategy_supertrend_atr
-from utils.chart import create_chart  # Đảm bảo đã tạo file chart.py
+from strategies.macd_signal import strategy_macd_signal
+from strategies.bollinger_bounce import strategy_bollinger_bounce
+from utils.chart import create_chart
+from utils.signal_manager import SignalManager
+from utils.risk_manager import RiskManager
 
-print(f"🚀 Bot Tín Hiệu Binance Futures khởi động lúc {datetime.now()}")
+print(f"🚀 Bot Tín Hiệu Binance Futures (Cải Tiến) khởi động lúc {datetime.now()}")
 
-def run_bot():
-    symbol = config['symbol']
-    interval = config['interval']
+class TradingBot:
+    def __init__(self):
+        self.client = Client()
+        self.signal_manager = SignalManager()
+        self.risk_manager = RiskManager()
+        self.data_cache = {}
+        self.last_cache_update = {}
 
-    # ✅ Không cần API Key/Secret vì chỉ đọc dữ liệu
-    client = Client()
+    def get_cached_data(self, symbol, interval, limit=200):
+        """Cache dữ liệu để tránh gọi API liên tục"""
+        cache_key = f"{symbol}_{interval}"
+        now = datetime.now()
+        if (cache_key in self.data_cache and 
+            cache_key in self.last_cache_update and
+            (now - self.last_cache_update[cache_key]).seconds < config['performance']['data_cache_minutes'] * 60):
+            return self.data_cache[cache_key]
+        df = get_klines_df(symbol, interval, limit)
+        if df is not None:
+            self.data_cache[cache_key] = df
+            self.last_cache_update[cache_key] = now
+        return df
 
-    while True:
+    def execute_strategy(self, strategy_name, df, df_higher=None):
+        """Thực thi một chiến lược với xác nhận multi-timeframe"""
+        try:
+            result = None
+            if strategy_name == "EMA_VWAP":
+                result = strategy_ema_vwap(df, df_higher)
+            elif strategy_name == "RSI_DIVERGENCE":
+                result = strategy_rsi_divergence(df, df_higher)
+            elif strategy_name == "SUPERTREND_ATR":
+                result = strategy_supertrend_atr(df, df_higher)
+            elif strategy_name == "MACD_SIGNAL":
+                result = strategy_macd_signal(df, df_higher)
+            elif strategy_name == "BOLLINGER_BOUNCE":
+                result = strategy_bollinger_bounce(df, df_higher)
+
+            if result:
+                side, entry, sl, tp, qty, confidence = result
+                return {
+                    'strategy': strategy_name,
+                    'side': side,
+                    'entry': entry,
+                    'sl': sl,
+                    'tp': tp,
+                    'qty': qty,
+                    'confidence': confidence,
+                    'timestamp': datetime.now()
+                }
+        except Exception as e:
+            print(f"⚠️ Lỗi chiến lược {strategy_name}: {e}")
+        return None
+
+    def analyze_market_conditions(self, df):
+        """Phân tích điều kiện thị trường"""
+        df['returns'] = df['close'].pct_change()
+        volatility = df['returns'].rolling(20).std().iloc[-1]
+        avg_volume = df['volume'].rolling(20).mean().iloc[-1]
+        current_volume = df['volume'].iloc[-1]
+        volume_ratio = current_volume / avg_volume
+        sma_short = df['close'].rolling(10).mean().iloc[-1]
+        sma_long = df['close'].rolling(30).mean().iloc[-1]
+        trend = "BULLISH" if sma_short > sma_long else "BEARISH"
+        return {
+            'volatility': volatility,
+            'volume_ratio': volume_ratio,
+            'trend': trend,
+            'market_strength': min(volume_ratio * 2, 3.0)
+        }
+
+    def filter_and_rank_signals(self, signals, market_conditions):
+        """Lọc và xếp hạng tín hiệu"""
+        if not signals:
+            return []
+        for signal in signals:
+            base_confidence = signal['confidence']
+            market_bonus = 0
+            if market_conditions['volume_ratio'] > 1.2:
+                market_bonus += 0.1
+            if market_conditions['volatility'] > 0.02:
+                market_bonus += 0.05
+            if ((signal['side'] == 'BUY' and market_conditions['trend'] == 'BULLISH') or
+                (signal['side'] == 'SELL' and market_conditions['trend'] == 'BEARISH')):
+                market_bonus += 0.1
+            signal['final_confidence'] = base_confidence + market_bonus
+        signals.sort(key=lambda x: x['final_confidence'], reverse=True)
+        return [s for s in signals if s['final_confidence'] >= 0.6]
+
+    def run_analysis_cycle(self):
+        """Một chu kỳ phân tích hoàn chỉnh"""
+        symbol = config['symbol']
+        interval = config['interval']
         try:
             # Lấy dữ liệu
-            df = get_klines_df(symbol, interval)
-            if df is None or len(df) < 50:
-                print("❌ Không lấy được dữ liệu hoặc dữ liệu quá ít")
-                time.sleep(60)
-                continue
+            df_main = self.get_cached_data(symbol, interval, 200)
+            df_higher = None
+            if config['risk_management']['enable_multi_timeframe']:
+                higher_interval = "15m" if interval == "5m" else "1h"
+                df_higher = self.get_cached_data(symbol, higher_interval, 100)
 
-            # Chạy từng chiến lược
-            for strat in config['active_strategies']:
-                result = None
-                if strat == "EMA_VWAP":
-                    result = strategy_ema_vwap(df)
-                elif strat == "RSI_DIVERGENCE":
-                    result = strategy_rsi_divergence(df)
-                elif strat == "SUPERTREND_ATR":
-                    result = strategy_supertrend_atr(df)
+            if df_main is None or len(df_main) < 50:
+                print("❌ Không đủ dữ liệu")
+                return
 
-                if result:
-                    side, entry, sl, tp, qty = result
-                    chart_path = "chart_signal.png"
+            # Phân tích thị trường
+            market_conditions = self.analyze_market_conditions(df_main)
+            print(f"📊 Thị trường: {market_conditions['trend']}, Vol: {market_conditions['volume_ratio']:.2f}")
 
-                    # ✅ Vẽ biểu đồ
-                    try:
-                        create_chart(df, symbol, side, entry, sl, tp, chart_path)
-                    except Exception as e:
-                        print(f"⚠️ Lỗi vẽ biểu đồ: {e}")
-                        chart_path = None
+            # Chạy chiến lược
+            signals = []
+            if config['performance']['parallel_strategy_execution']:
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    futures = [executor.submit(self.execute_strategy, strategy, df_main, df_higher) 
+                              for strategy in config['active_strategies']]
+                    for future in futures:
+                        result = future.result()
+                        if result:
+                            signals.append(result)
+            else:
+                for strategy in config['active_strategies']:
+                    result = self.execute_strategy(strategy, df_main, df_higher)
+                    if result:
+                        signals.append(result)
 
-                    # ✅ Gửi tín hiệu + ảnh
-                    message = f"""
-🔔 **TÍN HIỆU GIAO DỊCH** 🔔
-📌 Cặp: {symbol}
-🎯 Chiều: *{side}*
-💰 Giá vào: `{entry:.8f}`
-📉 Stop-Loss: `{sl:.8f}`
-📈 Take-Profit: `{tp:.8f}`
-📊 Khung: {interval}
-🕒 {pd.Timestamp.now().strftime('%H:%M %d/%m')}
-                    """
-                    send_telegram(message, chart_path)
-                    print(f"[{datetime.now()}] ✅ Đã gửi tín hiệu: {side} {symbol} @ {entry:.6f}")
+            # Lọc tín hiệu
+            qualified_signals = self.filter_and_rank_signals(signals, market_conditions)
 
-            # Chờ đến chu kỳ tiếp theo
-            print(f"[{datetime.now()}] Đang chờ chu kỳ tiếp theo...")
-            time.sleep(60 * 5)  # 5 phút
+            # Gửi tín hiệu tốt nhất
+            for signal in qualified_signals:
+                if self.risk_manager.can_send_signal(signal):
+                    if self.signal_manager.should_send_signal(signal):
+                        self.send_trading_signal(signal, market_conditions, df_main)
+                        break  # Chỉ gửi 1 tín hiệu mỗi chu kỳ
 
         except Exception as e:
-            error_msg = f"🔴 Lỗi hệ thống: {str(e)}"
+            error_msg = f"🔴 Lỗi: {str(e)}"
             print(error_msg)
             send_telegram(error_msg)
-            time.sleep(60)
+
+    def send_trading_signal(self, signal, market_conditions, df):
+        """Gửi tín hiệu giao dịch với thông tin chi tiết"""
+        try:
+            chart_path = f"chart_{signal['strategy'].lower()}.png"
+            create_chart(df, config['symbol'], signal['side'], 
+                        signal['entry'], signal['sl'], signal['tp'], chart_path)
+
+            if signal['side'] == 'BUY':
+                risk = (signal['entry'] - signal['sl']) / signal['entry'] * 100
+                reward = (signal['tp'] - signal['entry']) / signal['entry'] * 100
+            else:
+                risk = (signal['sl'] - signal['entry']) / signal['entry'] * 100
+                reward = (signal['entry'] - signal['tp']) / signal['entry'] * 100
+            rr_ratio = reward / risk if risk > 0 else 0
+
+            message = f"""
+🔔 **TÍN HIỆU GIAO DỊCH CHẤT LƯỢNG CAO** 🔔
+📌 **Thông tin cơ bản:**
+• Cặp: {config['symbol']}
+• Chiến lược: *{signal['strategy']}*
+• Hướng: *{signal['side']}* 
+• Độ tin cậy: {signal['final_confidence']:.1%} ⭐
+💰 **Chi tiết lệnh:**
+• Giá vào: `{signal['entry']:.8f}`
+• Stop-Loss: `{signal['sl']:.8f}` (-{risk:.2f}%)
+• Take-Profit: `{signal['tp']:.8f}` (+{reward:.2f}%)
+• R/R Ratio: 1:{rr_ratio:.2f}
+📊 **Điều kiện thị trường:**
+• Xu hướng: {market_conditions['trend']}
+• Volume: {market_conditions['volume_ratio']:.2f}x bình thường
+• Volatility: {market_conditions['volatility']:.4f}
+🕒 {datetime.now().strftime('%H:%M:%S - %d/%m/%Y')}
+⚠️ *Luôn quản lý rủi ro và không đầu tư quá khả năng chịu đựng*
+            """
+            send_telegram(message, chart_path)
+            self.signal_manager.record_signal(signal)
+            print(f"[{datetime.now()}] ✅ Đã gửi tín hiệu {signal['strategy']}: {signal['side']} @ {signal['entry']:.6f} (Tin cậy: {signal['final_confidence']:.1%})")
+
+        except Exception as e:
+            print(f"⚠️ Lỗi gửi tín hiệu: {e}")
+
+    def run_bot(self):
+        """Vòng lặp chính của bot"""
+        print("🎯 Bot đã sẵn sàng - Đang theo dõi thị trường...")
+        while True:
+            try:
+                start_time = time.time()
+                self.run_analysis_cycle()
+                processing_time = time.time() - start_time
+                print(f"⏱️ Chu kỳ hoàn thành trong {processing_time:.2f}s")
+                sleep_time = max(60, 300 - processing_time)
+                print(f"😴 Chờ {sleep_time:.0f}s đến chu kỳ tiếp theo...")
+                time.sleep(sleep_time)
+            except KeyboardInterrupt:
+                print("🛑 Bot đã dừng theo yêu cầu người dùng")
+                break
+            except Exception as e:
+                error_msg = f"🔴 Lỗi hệ thống: {str(e)}"
+                print(error_msg)
+                send_telegram(error_msg)
+                time.sleep(60)
 
 if __name__ == "__main__":
-    run_bot()
+    bot = TradingBot()
+    bot.run_bot()

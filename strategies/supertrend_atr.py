@@ -2,7 +2,10 @@
 import pandas as pd
 import ta
 
-def strategy_supertrend_atr(df, period=10, multiplier=3):
+def strategy_supertrend_atr(df, period=10, multiplier=3, df_higher=None):
+    if len(df) < 50:
+        return None
+    df = df.reset_index(drop=True)
     df['close'] = pd.to_numeric(df['close'])
     df['high'] = pd.to_numeric(df['high'])
     df['low'] = pd.to_numeric(df['low'])

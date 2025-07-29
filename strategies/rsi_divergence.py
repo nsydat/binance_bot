@@ -2,7 +2,9 @@
 import pandas as pd
 import ta
 
-def strategy_rsi_divergence(df):
+def strategy_rsi_divergence(df, df_higher=None):
+    if len(df) < 50:
+        return None
     df['close'] = pd.to_numeric(df['close'])
     df['high'] = pd.to_numeric(df['high'])
     df['low'] = pd.to_numeric(df['low'])

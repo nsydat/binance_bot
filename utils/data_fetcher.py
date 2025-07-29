@@ -19,3 +19,12 @@ def get_klines_df(symbol, interval, limit=100):
     except Exception as e:
         print(f"Lỗi lấy dữ liệu: {e}")
         return None
+    
+def get_multi_timeframe_data(symbol, main_interval, higher_interval, main_limit=200, higher_limit=100):
+    """
+    Lấy dữ liệu cho 2 khung thời gian
+    Ví dụ: 5m (main) và 15m (higher)
+    """
+    df_main = get_klines_df(symbol, main_interval, main_limit)
+    df_higher = get_klines_df(symbol, higher_interval, higher_limit)
+    return df_main, df_higher

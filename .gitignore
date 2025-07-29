@@ -41,7 +41,6 @@ logs/
 
 # Dữ liệu
 data/
-models/
 *.pkl
 *.csv
 
