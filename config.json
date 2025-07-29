@@ -1,0 +1,5 @@
+{
+  "symbols": ["BTCUSDT", "ETHUSDT", "XRPUSDT"],
+  "interval": "5m",
+  "active_strategies": ["EMA_VWAP", "RSI_DIVERGENCE", "SUPERTREND_ATR"]
+}
