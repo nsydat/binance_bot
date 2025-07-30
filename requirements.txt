@@ -2,5 +2,9 @@ python-binance
 pandas
 ta
 numpy
+matplotlib
+mplfinance
 requests
 python-dotenv
+flask
+flask-socketio

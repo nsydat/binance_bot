@@ -6,6 +6,9 @@ import time
 import os
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+from dashboard.app import bot_status, log, emit_update, socketio
+from threading import Thread
+from dashboard.app import socketio
 
 # Load config
 config = {
@@ -46,6 +49,42 @@ class TradingBot:
         self.risk_manager = RiskManager()
         self.data_cache = {}
         self.last_cache_update = {}
+        self.update_dashboard_config()
+        # Khởi động dashboard trong thread riêng
+        Thread(target=self.run_dashboard, daemon=True).start()
+        
+    def run_dashboard(self):
+        """
+        Khởi động Flask-SocketIO server
+        """
+        try:
+            from dashboard.app import app  # Import Flask app
+            socketio.run(
+                app=app,
+                host='0.0.0.0',
+                port=5000,
+                debug=False,
+                use_reloader=False
+            )
+        except Exception as e:
+            print(f"❌ Lỗi khởi động dashboard: {e}")
+            log(f"❌ Lỗi dashboard: {e}")
+
+    def update_dashboard_config(self):
+        """
+        Cập nhật cấu hình hiện tại lên dashboard
+        """
+        from dashboard.app import bot_status
+        bot_status['config'] = {
+            'symbol': config['symbol'],
+            'interval': config['interval'],
+            'active_strategies': config['active_strategies'],
+            'max_signals_per_hour': config['risk_management']['max_signals_per_hour']
+        }
+        # Ghi log
+        log("✅ Cấu hình đã được cập nhật lên dashboard")
+        # Gửi cập nhật realtime
+        emit_update()
 
     def get_cached_data(self, symbol, interval, limit=200):
         """Cache dữ liệu để tránh gọi API liên tục"""
@@ -168,6 +207,12 @@ class TradingBot:
 
             # Gửi tín hiệu tốt nhất
             for signal in qualified_signals:
+                # ✅ Bỏ qua tín hiệu ở lần chạy đầu tiên
+                if self.is_first_run:
+                    print("🟡 Lần chạy đầu tiên - Không gửi tín hiệu cũ")
+                    self.is_first_run = False
+                    break
+
                 if self.risk_manager.can_send_signal(signal):
                     if self.signal_manager.should_send_signal(signal):
                         self.send_trading_signal(signal, market_conditions, df_main)
@@ -222,17 +267,36 @@ class TradingBot:
     def run_bot(self):
         """Vòng lặp chính của bot"""
         print("🎯 Bot đã sẵn sàng - Đang theo dõi thị trường...")
-        while True:
+        start_time = time.time()  # ← Khởi tạo trước vòng lặp
+
+        while bot_status['is_running']:  # ← Dùng biến điều khiển từ dashboard
             try:
-                start_time = time.time()
+                # Cập nhật uptime
+                elapsed = time.time() - start_time
+                h, rem = divmod(elapsed, 3600)
+                m, s = divmod(rem, 60)
+                bot_status['uptime'] = f"{int(h):02}:{int(m):02}:{int(s):02}"
+                emit_update()
+
+                # Chạy chu kỳ phân tích
                 self.run_analysis_cycle()
+
+                # Tính thời gian xử lý
                 processing_time = time.time() - start_time
                 print(f"⏱️ Chu kỳ hoàn thành trong {processing_time:.2f}s")
-                sleep_time = max(60, 300 - processing_time)
+
+                # Tính thời gian chờ
+                sleep_time = max(60, 300 - processing_time)  # Mục tiêu: 5 phút
                 print(f"😴 Chờ {sleep_time:.0f}s đến chu kỳ tiếp theo...")
                 time.sleep(sleep_time)
+
+                # Reset start_time cho chu kỳ mới
+                start_time = time.time()
+
             except KeyboardInterrupt:
                 print("🛑 Bot đã dừng theo yêu cầu người dùng")
+                bot_status['is_running'] = False
+                emit_update()
                 break
             except Exception as e:
                 error_msg = f"🔴 Lỗi hệ thống: {str(e)}"

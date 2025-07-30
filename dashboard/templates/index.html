@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📊 Dashboard Bot Giao Dịch</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- CSS Riêng -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h1 class="display-5 fw-bold">🚀 Dashboard Bot Tín Hiệu Binance</h1>
+            <p class="lead">Theo dõi & điều khiển bot từ mọi nơi</p>
+        </div>
+
+        <div class="row">
+            <!-- Control Panel -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">⚙️ Điều khiển</div>
+                    <div class="card-body">
+                        <button id="startBtn" class="btn btn-start w-100 mb-3">🟢 Bật Bot</button>
+                        <button id="stopBtn" class="btn btn-stop w-100 mb-3">🔴 Dừng Bot</button>
+
+                        <div class="mb-3">
+                            <label for="symbolInput" class="form-label">Cặp giao dịch</label>
+                            <input type="text" id="symbolInput" class="form-control" value="DOGEUSDT">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Chiến lược bật</label>
+                            <select id="strategySelect" multiple class="form-select" size="5">
+                                <option value="EMA_VWAP" selected>EMA + VWAP</option>
+                                <option value="RSI_DIVERGENCE" selected>RSI Divergence</option>
+                                <option value="SUPERTREND_ATR" selected>Supertrend + ATR</option>
+                                <option value="MACD_SIGNAL">MACD Signal</option>
+                                <option value="BOLLINGER_BOUNCE">Bollinger Bounce</option>
+                            </select>
+                        </div>
+
+                        <button id="saveConfigBtn" class="btn btn-primary w-100">💾 Lưu Cấu Hình</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status & Signal -->
+            <div class="col-lg-8">
+                <!-- Status -->
+                <div class="card">
+                    <div class="card-header">🤖 Trạng thái Bot</div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="status-indicator" id="statusIndicator"></span>
+                            <span id="statusText">Đang kết nối...</span>
+                        </div>
+                        <p><strong>Uptime:</strong> <span class="uptime" id="uptime">00:00:00</span></p>
+                        <p><strong>Cấu hình:</strong> <span id="configText">Chưa có</span></p>
+                    </div>
+                </div>
+
+                <!-- Last Signal -->
+                <div class="card">
+                    <div class="card-header">🔔 Tín hiệu mới nhất</div>
+                    <div class="card-body" id="lastSignal">
+                        Chưa có tín hiệu nào
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">📈 Biểu đồ hiệu suất (giả lập)</div>
+                    <div class="card-body">
+                        <canvas id="performanceChart" height="100"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">📋 Log hoạt động</div>
+                    <div class="card-body">
+                        <div class="log" id="log"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- JavaScript Riêng -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
