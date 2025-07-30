@@ -30,7 +30,7 @@ def strategy_supertrend_atr(df, period=10, multiplier=3, df_higher=None):
         entry = df['close'].iloc[-1]
         sl = lowerband.iloc[-1] * 0.99
         tp = entry + 2 * (entry - sl)
-        return 'BUY', entry, sl, tp, 0.001
+        return 'BUY', entry, sl, tp, 0.001, 0.7  
     elif not in_uptrend[-1] and in_uptrend[-2]:
         entry = df['close'].iloc[-1]
         sl = upperband.iloc[-1] * 1.01

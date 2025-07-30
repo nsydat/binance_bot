@@ -44,6 +44,7 @@ print(f"🚀 Bot Tín Hiệu Binance Futures (Cải Tiến) khởi động lúc 
 
 class TradingBot:
     def __init__(self):
+        self.is_first_run = True
         self.client = Client()
         self.signal_manager = SignalManager()
         self.risk_manager = RiskManager()
@@ -264,45 +265,51 @@ class TradingBot:
         except Exception as e:
             print(f"⚠️ Lỗi gửi tín hiệu: {e}")
 
+    def responsive_sleep(self, total_seconds):
+        """Sleep có thể bị interrupt khi bot_status thay đổi"""
+        check_interval = 5  # Kiểm tra mỗi 5 giây
+        elapsed = 0
+        
+        while elapsed < total_seconds and bot_status['is_running']:
+            sleep_time = min(check_interval, total_seconds - elapsed)
+            time.sleep(sleep_time)
+            elapsed += sleep_time
+            
+            # Cập nhật trạng thái dashboard
+            emit_update()
+
     def run_bot(self):
-        """Vòng lặp chính của bot"""
-        print("🎯 Bot đã sẵn sàng - Đang theo dõi thị trường...")
-        start_time = time.time()  # ← Khởi tạo trước vòng lặp
-
-        while bot_status['is_running']:  # ← Dùng biến điều khiển từ dashboard
+        print("🎯 Bot đã sẵn sàng...")
+        
+        while True:  # Vòng lặp vô hạn với điều kiện bên trong
+            if not bot_status['is_running']:
+                print("⏸️ Bot đã được tạm dừng")
+                # Chờ được bật lại
+                while not bot_status['is_running']:
+                    time.sleep(2)
+                    emit_update()
+                print("▶️ Bot tiếp tục hoạt động")
+                
             try:
-                # Cập nhật uptime
-                elapsed = time.time() - start_time
-                h, rem = divmod(elapsed, 3600)
-                m, s = divmod(rem, 60)
-                bot_status['uptime'] = f"{int(h):02}:{int(m):02}:{int(s):02}"
-                emit_update()
-
                 # Chạy chu kỳ phân tích
+                cycle_start = time.time()
                 self.run_analysis_cycle()
-
-                # Tính thời gian xử lý
-                processing_time = time.time() - start_time
-                print(f"⏱️ Chu kỳ hoàn thành trong {processing_time:.2f}s")
-
+                
                 # Tính thời gian chờ
-                sleep_time = max(60, 300 - processing_time)  # Mục tiêu: 5 phút
-                print(f"😴 Chờ {sleep_time:.0f}s đến chu kỳ tiếp theo...")
-                time.sleep(sleep_time)
-
-                # Reset start_time cho chu kỳ mới
-                start_time = time.time()
-
+                processing_time = time.time() - cycle_start
+                sleep_time = max(60, 300 - processing_time)
+                
+                print(f"😴 Chờ {sleep_time:.0f}s... (Nhấn STOP để dừng)")
+                self.responsive_sleep(sleep_time)  # ← Sử dụng responsive sleep
+                
             except KeyboardInterrupt:
-                print("🛑 Bot đã dừng theo yêu cầu người dùng")
+                print("🛑 Dừng bởi Ctrl+C")
                 bot_status['is_running'] = False
-                emit_update()
                 break
             except Exception as e:
-                error_msg = f"🔴 Lỗi hệ thống: {str(e)}"
-                print(error_msg)
-                send_telegram(error_msg)
-                time.sleep(60)
+                print(f"🔴 Lỗi: {e}")
+                if bot_status['is_running']:  # Chỉ sleep nếu vẫn đang chạy
+                    self.responsive_sleep(60)
 
 if __name__ == "__main__":
     bot = TradingBot()

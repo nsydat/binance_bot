@@ -32,7 +32,7 @@ def strategy_rsi_divergence(df, df_higher=None):
                 entry = df['close'].iloc[-1]
                 sl = df['low'].iloc[i] * 0.99
                 tp = entry + 2 * (entry - sl)
-                return 'BUY', entry, sl, tp, 0.001
+                return 'BUY', entry, sl, tp, 0.001, 0.7 
 
     # Bearish Divergence: Giá tạo đỉnh cao hơn, RSI tạo đỉnh thấp hơn
     for i in range(3, len(df) - 1):

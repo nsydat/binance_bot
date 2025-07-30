@@ -84,3 +84,90 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     };
 });
+
+// Thêm vào dashboard.js
+function updatePerformanceChart(data) {
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+    
+    // Real-time performance tracking
+    if (performanceChart.data.labels.length > 50) {
+        performanceChart.data.labels.shift();
+        performanceChart.data.datasets[0].data.shift();
+    }
+    
+    performanceChart.data.labels.push(new Date().toLocaleTimeString());
+    performanceChart.data.datasets[0].data.push(data.current_balance);
+    performanceChart.update();
+}
+
+// Strategy performance comparison
+function createStrategyComparisonChart(strategyData) {
+    const ctx = document.getElementById('strategyChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(strategyData),
+            datasets: [{
+                label: 'Confidence Score',
+                data: Object.values(strategyData).map(s => s.avg_confidence),
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            }]
+        }
+    });
+}
+
+// dashboard.js - Thêm trạng thái UI
+let botControlEnabled = true;
+
+document.getElementById('startBtn').onclick = () => {
+    if (!botControlEnabled) return;
+    
+    botControlEnabled = false;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('startBtn').innerHTML = '⏳ Đang khởi động...';
+    
+    socket.emit('start_bot');
+    
+    // Re-enable sau 3 giây
+    setTimeout(() => {
+        botControlEnabled = true;
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('startBtn').innerHTML = '🟢 Bật Bot';
+    }, 3000);
+};
+
+document.getElementById('stopBtn').onclick = () => {
+    if (!botControlEnabled) return;
+    
+    if (confirm('Bạn có chắc muốn dừng bot?')) {
+        botControlEnabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('stopBtn').innerHTML = '⏳ Đang dừng...';
+        
+        socket.emit('stop_bot');
+        
+        setTimeout(() => {
+            botControlEnabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').innerHTML = '🔴 Dừng Bot';
+        }, 3000);
+    }
+};
+
+// Cập nhật UI theo trạng thái thực tế
+socket.on('status_update', function (status) {
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    
+    if (status.is_running) {
+        startBtn.style.opacity = '0.5';
+        stopBtn.style.opacity = '1';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+    } else {
+        startBtn.style.opacity = '1';
+        stopBtn.style.opacity = '0.5';
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+    }
+});
