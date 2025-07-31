@@ -1,4 +1,4 @@
-# bot.py - Phiên bản cải tiến (ĐÃ SỬA LỖI, KHÔNG DÙNG AI)
+# bot.py - Phiên bản hoàn chỉnh (Đã sửa lỗi, hỗ trợ đa cặp, dashboard)
 from binance import Client
 import pandas as pd
 from datetime import datetime, timedelta
@@ -6,31 +6,20 @@ import time
 import os
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from dashboard.app import bot_status, log, emit_update, socketio
 from threading import Thread
-from dashboard.app import socketio
 
-# Load config
-config = {
-    "symbol": "DOGEUSDT",
-    "interval": "5m",
-    "active_strategies": ["EMA_VWAP", "RSI_DIVERGENCE", "SUPERTREND_ATR", "MACD_SIGNAL", "BOLLINGER_BOUNCE"],
-    "risk_management": {
-        "max_signals_per_hour": 3,
-        "min_signal_gap_minutes": 15,
-        "enable_multi_timeframe": True,
-        "confirmation_required": True
-    },
-    "performance": {
-        "data_cache_minutes": 2,
-        "parallel_strategy_execution": True,
-        "adaptive_parameters": True
-    }
-}
+# Load config từ file
+try:
+    with open('config.json', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    print("✅ Đã tải cấu hình từ config.json")
+except FileNotFoundError:
+    print("❌ Không tìm thấy config.json")
+    exit(1)
 
 # Import utilities
 from utils.telegram import send_telegram
-from utils.data_fetcher import get_klines_df, get_multi_timeframe_data
+from utils.data_fetcher import get_klines_df
 from strategies.ema_vwap import strategy_ema_vwap
 from strategies.rsi_divergence import strategy_rsi_divergence
 from strategies.supertrend_atr import strategy_supertrend_atr
@@ -39,6 +28,7 @@ from strategies.bollinger_bounce import strategy_bollinger_bounce
 from utils.chart import create_chart
 from utils.signal_manager import SignalManager
 from utils.risk_manager import RiskManager
+from dashboard.app import bot_status, log, emit_update, socketio
 
 print(f"🚀 Bot Tín Hiệu Binance Futures (Cải Tiến) khởi động lúc {datetime.now()}")
 
@@ -53,15 +43,13 @@ class TradingBot:
         self.update_dashboard_config()
         # Khởi động dashboard trong thread riêng
         Thread(target=self.run_dashboard, daemon=True).start()
-        
+
     def run_dashboard(self):
         """
         Khởi động Flask-SocketIO server
         """
         try:
-            from dashboard.app import app  # Import Flask app
             socketio.run(
-                app=app,
                 host='0.0.0.0',
                 port=5000,
                 debug=False,
@@ -75,16 +63,13 @@ class TradingBot:
         """
         Cập nhật cấu hình hiện tại lên dashboard
         """
-        from dashboard.app import bot_status
         bot_status['config'] = {
-            'symbol': config['symbol'],
+            'symbols': config['symbols'],
             'interval': config['interval'],
             'active_strategies': config['active_strategies'],
             'max_signals_per_hour': config['risk_management']['max_signals_per_hour']
         }
-        # Ghi log
         log("✅ Cấu hình đã được cập nhật lên dashboard")
-        # Gửi cập nhật realtime
         emit_update()
 
     def get_cached_data(self, symbol, interval, limit=200):
@@ -115,7 +100,6 @@ class TradingBot:
                 result = strategy_macd_signal(df, df_higher)
             elif strategy_name == "BOLLINGER_BOUNCE":
                 result = strategy_bollinger_bounce(df, df_higher)
-
             if result:
                 side, entry, sl, tp, qty, confidence = result
                 return {
@@ -168,67 +152,72 @@ class TradingBot:
         return [s for s in signals if s['final_confidence'] >= 0.6]
 
     def run_analysis_cycle(self):
-        """Một chu kỳ phân tích hoàn chỉnh"""
-        symbol = config['symbol']
+        """Một chu kỳ phân tích hoàn chỉnh cho tất cả các cặp tiền"""
         interval = config['interval']
-        try:
-            # Lấy dữ liệu
-            df_main = self.get_cached_data(symbol, interval, 200)
-            df_higher = None
-            if config['risk_management']['enable_multi_timeframe']:
-                higher_interval = "15m" if interval == "5m" else "1h"
-                df_higher = self.get_cached_data(symbol, higher_interval, 100)
 
-            if df_main is None or len(df_main) < 50:
-                print("❌ Không đủ dữ liệu")
-                return
+        for symbol in config['symbols']:
+            print(f"\n🔍 Đang phân tích {symbol}...")
 
-            # Phân tích thị trường
-            market_conditions = self.analyze_market_conditions(df_main)
-            print(f"📊 Thị trường: {market_conditions['trend']}, Vol: {market_conditions['volume_ratio']:.2f}")
+            try:
+                # Lấy dữ liệu
+                df_main = self.get_cached_data(symbol, interval, 200)
+                df_higher = None
+                if config['risk_management']['enable_multi_timeframe']:
+                    higher_interval = "15m" if interval == "5m" else "1h"
+                    df_higher = self.get_cached_data(symbol, higher_interval, 100)
 
-            # Chạy chiến lược
-            signals = []
-            if config['performance']['parallel_strategy_execution']:
-                with ThreadPoolExecutor(max_workers=3) as executor:
-                    futures = [executor.submit(self.execute_strategy, strategy, df_main, df_higher) 
-                              for strategy in config['active_strategies']]
-                    for future in futures:
-                        result = future.result()
+                if df_main is None or len(df_main) < 50:
+                    print(f"❌ {symbol}: Không đủ dữ liệu")
+                    continue
+
+                # Phân tích điều kiện thị trường
+                market_conditions = self.analyze_market_conditions(df_main)
+                print(f"📊 {symbol}: {market_conditions['trend']}, Vol: {market_conditions['volume_ratio']:.2f}")
+
+                # Chạy chiến lược
+                signals = []
+                if config['performance']['parallel_strategy_execution']:
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = [
+                            executor.submit(self.execute_strategy, strategy, df_main, df_higher)
+                            for strategy in config['active_strategies']
+                        ]
+                        for future in futures:
+                            result = future.result()
+                            if result:
+                                signals.append(result)
+                else:
+                    for strategy in config['active_strategies']:
+                        result = self.execute_strategy(strategy, df_main, df_higher)
                         if result:
                             signals.append(result)
-            else:
-                for strategy in config['active_strategies']:
-                    result = self.execute_strategy(strategy, df_main, df_higher)
-                    if result:
-                        signals.append(result)
 
-            # Lọc tín hiệu
-            qualified_signals = self.filter_and_rank_signals(signals, market_conditions)
+                # Lọc tín hiệu
+                qualified_signals = self.filter_and_rank_signals(signals, market_conditions)
 
-            # Gửi tín hiệu tốt nhất
-            for signal in qualified_signals:
-                # ✅ Bỏ qua tín hiệu ở lần chạy đầu tiên
-                if self.is_first_run:
-                    print("🟡 Lần chạy đầu tiên - Không gửi tín hiệu cũ")
-                    self.is_first_run = False
-                    break
+                # Gửi tín hiệu tốt nhất
+                for signal in qualified_signals:
+                    # ✅ Bỏ qua tín hiệu ở lần chạy đầu tiên
+                    if self.is_first_run:
+                        print("🟡 Lần chạy đầu tiên - Không gửi tín hiệu cũ")
+                        self.is_first_run = False
+                        break
 
-                if self.risk_manager.can_send_signal(signal):
-                    if self.signal_manager.should_send_signal(signal):
-                        self.send_trading_signal(signal, market_conditions, df_main)
-                        break  # Chỉ gửi 1 tín hiệu mỗi chu kỳ
+                    if self.risk_manager.can_send_signal(signal):
+                        if self.signal_manager.should_send_signal(signal):
+                            self.send_trading_signal(signal, market_conditions, df_main, symbol)
+                            break  # Chỉ gửi 1 tín hiệu mỗi chu kỳ
 
-        except Exception as e:
-            error_msg = f"🔴 Lỗi: {str(e)}"
-            print(error_msg)
-            send_telegram(error_msg)
+            except Exception as e:
+                error_msg = f"🔴 Lỗi phân tích {symbol}: {str(e)}"
+                print(error_msg)
+                send_telegram(error_msg)
 
-    def send_trading_signal(self, signal, market_conditions, df):
+    def send_trading_signal(self, signal, market_conditions, df, symbol):
         """Gửi tín hiệu giao dịch với thông tin chi tiết"""
         try:
-            chart_path = f"chart_{signal['strategy'].lower()}.png"
-            create_chart(df, config['symbol'], signal['side'], 
+            chart_path = f"chart_{signal['strategy'].lower()}_{symbol}.png"
+            create_chart(df, symbol, signal['side'], 
                         signal['entry'], signal['sl'], signal['tp'], chart_path)
 
             if signal['side'] == 'BUY':
@@ -242,7 +231,7 @@ class TradingBot:
             message = f"""
 🔔 **TÍN HIỆU GIAO DỊCH CHẤT LƯỢNG CAO** 🔔
 📌 **Thông tin cơ bản:**
-• Cặp: {config['symbol']}
+• Cặp: *{symbol}*
 • Chiến lược: *{signal['strategy']}*
 • Hướng: *{signal['side']}* 
 • Độ tin cậy: {signal['final_confidence']:.1%} ⭐
@@ -260,55 +249,43 @@ class TradingBot:
             """
             send_telegram(message, chart_path)
             self.signal_manager.record_signal(signal)
-            print(f"[{datetime.now()}] ✅ Đã gửi tín hiệu {signal['strategy']}: {signal['side']} @ {signal['entry']:.6f} (Tin cậy: {signal['final_confidence']:.1%})")
-
+            print(f"[{datetime.now()}] ✅ Đã gửi tín hiệu {signal['strategy']} cho {symbol}: {signal['side']} @ {signal['entry']:.6f}")
         except Exception as e:
             print(f"⚠️ Lỗi gửi tín hiệu: {e}")
 
     def responsive_sleep(self, total_seconds):
         """Sleep có thể bị interrupt khi bot_status thay đổi"""
-        check_interval = 5  # Kiểm tra mỗi 5 giây
+        check_interval = 5
         elapsed = 0
-        
         while elapsed < total_seconds and bot_status['is_running']:
             sleep_time = min(check_interval, total_seconds - elapsed)
             time.sleep(sleep_time)
             elapsed += sleep_time
-            
-            # Cập nhật trạng thái dashboard
             emit_update()
 
     def run_bot(self):
         print("🎯 Bot đã sẵn sàng...")
-        
-        while True:  # Vòng lặp vô hạn với điều kiện bên trong
+        while True:
             if not bot_status['is_running']:
                 print("⏸️ Bot đã được tạm dừng")
-                # Chờ được bật lại
                 while not bot_status['is_running']:
                     time.sleep(2)
                     emit_update()
                 print("▶️ Bot tiếp tục hoạt động")
-                
             try:
-                # Chạy chu kỳ phân tích
                 cycle_start = time.time()
                 self.run_analysis_cycle()
-                
-                # Tính thời gian chờ
                 processing_time = time.time() - cycle_start
                 sleep_time = max(60, 300 - processing_time)
-                
                 print(f"😴 Chờ {sleep_time:.0f}s... (Nhấn STOP để dừng)")
-                self.responsive_sleep(sleep_time)  # ← Sử dụng responsive sleep
-                
+                self.responsive_sleep(sleep_time)
             except KeyboardInterrupt:
                 print("🛑 Dừng bởi Ctrl+C")
                 bot_status['is_running'] = False
                 break
             except Exception as e:
                 print(f"🔴 Lỗi: {e}")
-                if bot_status['is_running']:  # Chỉ sleep nếu vẫn đang chạy
+                if bot_status['is_running']:
                     self.responsive_sleep(60)
 
 if __name__ == "__main__":
