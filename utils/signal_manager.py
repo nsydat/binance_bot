@@ -1,17 +1,19 @@
-# utils/signal_manager.py
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Signal manager for controlling signal frequency
+"""
+
 from datetime import datetime, timedelta
 
 class SignalManager:
     def __init__(self):
-        self.sent_signals = []  # Lưu các tín hiệu đã gửi
-        self.max_signals_per_hour = 3
+        self.sent_signals = []
+        self.max_signals_per_hour = 6  # Cập nhật theo số chiến thuật
         self.min_signal_gap = timedelta(minutes=15)
 
     def should_send_signal(self, new_signal):
-        """
-        Kiểm tra xem có nên gửi tín hiệu mới không
-        Dựa trên số lượng và khoảng cách thời gian
-        """
+        """Kiểm tra xem có nên gửi tín hiệu mới không"""
         now = datetime.now()
         recent_signals = [
             s for s in self.sent_signals
@@ -31,9 +33,7 @@ class SignalManager:
         return True
 
     def record_signal(self, signal):
-        """
-        Ghi lại tín hiệu đã gửi
-        """
+        """Ghi lại tín hiệu đã gửi"""
         self.sent_signals.append(signal.copy())
         # Dọn dẹp các tín hiệu cũ hơn 2 giờ
         two_hours_ago = datetime.now() - timedelta(hours=2)

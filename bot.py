@@ -1,14 +1,18 @@
-# bot.py - Phiên bản hoàn chỉnh (Đã sửa lỗi, hỗ trợ đa cặp, dashboard)
-from binance import Client
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Bot Tín Hiệu Binance Futures - Phiên bản 2.1
+Hỗ trợ 6 chiến thuật với multi-timeframe confirmation
+"""
+
 import pandas as pd
 from datetime import datetime, timedelta
 import time
-import os
+import json
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
 from threading import Thread
 
-# Load config từ file
+# Load config
 try:
     with open('config.json', 'r', encoding='utf-8') as f:
         config = json.load(f)
@@ -20,22 +24,23 @@ except FileNotFoundError:
 # Import utilities
 from utils.telegram import send_telegram
 from utils.data_fetcher import get_klines_df
-from strategies.ema_vwap import strategy_ema_vwap
-from strategies.rsi_divergence import strategy_rsi_divergence
-from strategies.supertrend_atr import strategy_supertrend_atr
-from strategies.macd_signal import strategy_macd_signal
-from strategies.bollinger_bounce import strategy_bollinger_bounce
 from utils.chart import create_chart
 from utils.signal_manager import SignalManager
 from utils.risk_manager import RiskManager
 from dashboard.app import bot_status, log, emit_update, socketio
+
+# Import strategies
+from strategies.supertrend_rsi import supertrend_rsi_strategy as strategy_bollinger_bounce
+from strategies.ema_vwap_rsi import ema_vwap_rsi_strategy as strategy_rsi_divergence
+from strategies.trend_momentum_volume import trend_momentum_volume_strategy as strategy_supertrend_atr
+from strategies.breakout_volume_sr import breakout_volume_sr_strategy as strategy_macd_signal
+from strategies.multi_timeframe import multi_timeframe_strategy as strategy_multi_timeframe
 
 print(f"🚀 Bot Tín Hiệu Binance Futures (Cải Tiến) khởi động lúc {datetime.now()}")
 
 class TradingBot:
     def __init__(self):
         self.is_first_run = True
-        self.client = Client()
         self.signal_manager = SignalManager()
         self.risk_manager = RiskManager()
         self.data_cache = {}
@@ -88,18 +93,23 @@ class TradingBot:
 
     def execute_strategy(self, strategy_name, df, df_higher=None):
         """Thực thi một chiến lược với xác nhận multi-timeframe"""
+        # Strategy mapping
+        strategy_map = {
+            "EMA_VWAP": strategy_ema_vwap,
+            "RSI_DIVERGENCE": strategy_rsi_divergence,
+            "SUPERTREND_ATR": strategy_supertrend_atr,
+            "MACD_SIGNAL": strategy_macd_signal,
+            "BOLLINGER_BOUNCE": strategy_bollinger_bounce,
+            "MULTI_TIMEFRAME": strategy_multi_timeframe
+        }
+        
         try:
-            result = None
-            if strategy_name == "EMA_VWAP":
-                result = strategy_ema_vwap(df, df_higher)
-            elif strategy_name == "RSI_DIVERGENCE":
-                result = strategy_rsi_divergence(df, df_higher)
-            elif strategy_name == "SUPERTREND_ATR":
-                result = strategy_supertrend_atr(df, df_higher)
-            elif strategy_name == "MACD_SIGNAL":
-                result = strategy_macd_signal(df, df_higher)
-            elif strategy_name == "BOLLINGER_BOUNCE":
-                result = strategy_bollinger_bounce(df, df_higher)
+            if strategy_name not in strategy_map:
+                print(f"⚠️ Chiến lược {strategy_name} không tồn tại")
+                return None
+                
+            result = strategy_map[strategy_name](df, df_higher)
+            
             if result:
                 side, entry, sl, tp, qty, confidence = result
                 return {
@@ -176,8 +186,10 @@ class TradingBot:
 
                 # Chạy chiến lược
                 signals = []
+                max_workers = len(config['active_strategies'])
+                
                 if config['performance']['parallel_strategy_execution']:
-                    with ThreadPoolExecutor(max_workers=3) as executor:
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
                         futures = [
                             executor.submit(self.execute_strategy, strategy, df_main, df_higher)
                             for strategy in config['active_strategies']
@@ -220,6 +232,7 @@ class TradingBot:
             create_chart(df, symbol, signal['side'], 
                         signal['entry'], signal['sl'], signal['tp'], chart_path)
 
+            # Tính toán risk/reward
             if signal['side'] == 'BUY':
                 risk = (signal['entry'] - signal['sl']) / signal['entry'] * 100
                 reward = (signal['tp'] - signal['entry']) / signal['entry'] * 100
@@ -228,25 +241,28 @@ class TradingBot:
                 reward = (signal['entry'] - signal['tp']) / signal['entry'] * 100
             rr_ratio = reward / risk if risk > 0 else 0
 
-            message = f"""
-🔔 **TÍN HIỆU GIAO DỊCH CHẤT LƯỢNG CAO** 🔔
+            # Tạo message
+            message = f"""🔔 **TÍN HIỆU GIAO DỊCH CHẤT LƯỢNG CAO** 🔔
 📌 **Thông tin cơ bản:**
 • Cặp: *{symbol}*
 • Chiến lược: *{signal['strategy']}*
 • Hướng: *{signal['side']}* 
 • Độ tin cậy: {signal['final_confidence']:.1%} ⭐
+
 💰 **Chi tiết lệnh:**
 • Giá vào: `{signal['entry']:.8f}`
 • Stop-Loss: `{signal['sl']:.8f}` (-{risk:.2f}%)
 • Take-Profit: `{signal['tp']:.8f}` (+{reward:.2f}%)
 • R/R Ratio: 1:{rr_ratio:.2f}
+
 📊 **Điều kiện thị trường:**
 • Xu hướng: {market_conditions['trend']}
 • Volume: {market_conditions['volume_ratio']:.2f}x bình thường
 • Volatility: {market_conditions['volatility']:.4f}
+
 🕒 {datetime.now().strftime('%H:%M:%S - %d/%m/%Y')}
-⚠️ *Luôn quản lý rủi ro và không đầu tư quá khả năng chịu đựng*
-            """
+⚠️ *Luôn quản lý rủi ro và không đầu tư quá khả năng chịu đựng*"""
+
             send_telegram(message, chart_path)
             self.signal_manager.record_signal(signal)
             print(f"[{datetime.now()}] ✅ Đã gửi tín hiệu {signal['strategy']} cho {symbol}: {signal['side']} @ {signal['entry']:.6f}")

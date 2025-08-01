@@ -1,9 +1,9 @@
 {
   "symbols": ["BTCUSDT", "ETHUSDT", "XRPUSDT"],
   "interval": "5m",
-  "active_strategies": ["EMA_VWAP", "RSI_DIVERGENCE", "SUPERTREND_ATR"],
+  "active_strategies": ["EMA_VWAP", "RSI_DIVERGENCE", "SUPERTREND_ATR", "MACD_SIGNAL", "BOLLINGER_BOUNCE", "MULTI_TIMEFRAME"],
   "risk_management": {
-    "max_signals_per_hour": 3,
+    "max_signals_per_hour": 6,
     "min_signal_gap_minutes": 15,
     "enable_multi_timeframe": true,
     "confirmation_required": true

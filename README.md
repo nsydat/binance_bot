@@ -12,12 +12,13 @@ Dùng để:
 ## 📦 Tính năng chính
 
 - ✅ Quét nhiều cặp: `BTCUSDT`, `ETHUSDT`, `DOGEUSDT`, `XRPUSDT`
-- ✅ 5 chiến lược hiệu quả:
-  - **EMA + VWAP**: Theo xu hướng ổn định
-  - **RSI Divergence**: Phát hiện đảo chiều sớm
-  - **Supertrend + ATR**: Bắt trend mạnh, ít repaint
-  - **MACD Signal**: Xác nhận động lượng
-  - **Bollinger Bounce**: Giao dịch ngược khi quá mức
+- ✅ 6 chiến lược hiệu quả:
+  - **EMA + VWAP + RSI**: Theo xu hướng ổn định với xác nhận RSI
+  - **Supertrend + RSI**: Bắt trend mạnh với RSI quá mua/bán
+  - **Trend + Momentum + Volume**: Kết hợp xu hướng, động lượng và khối lượng
+  - **Breakout + Volume + S/R**: Phát hiện breakout với xác nhận khối lượng
+  - **Multi-Timeframe**: Chiến lược đa khung thời gian với weighted voting
+  - **Bollinger Bounce**: Giao dịch ngược khi quá mức (dự phòng)
 - ✅ Đa khung thời gian: Xác nhận tín hiệu từ khung lớn hơn
 - ✅ Quản lý rủi ro: Giới hạn tín hiệu/giờ, khoảng cách giữa tín hiệu
 - ✅ Phân tích thị trường: Tự động nhận diện xu hướng, volatility, volume
@@ -43,6 +44,22 @@ Dùng để:
 - ✅ **Xử lý song song** (`ThreadPoolExecutor`)
 - ✅ **Dashboard realtime** với điều khiển từ xa
 - ✅ **Tối ưu hiệu suất** và cấu trúc code
+
+### **Version 2.1: Mở rộng 6 chiến thuật**
+- ✅ **Nâng cấp lên 6 chiến thuật**: Thêm **Multi-Timeframe Strategy**
+- ✅ **Cải tiến các chiến thuật hiện có**: Tối ưu hóa logic và tham số
+- ✅ **Hỗ trợ đầy đủ multi-timeframe**: Tất cả chiến thuật đều hỗ trợ xác nhận từ khung thời gian cao hơn
+- ✅ **Tăng cường ThreadPoolExecutor**: Từ 3 lên 6 workers để xử lý song song hiệu quả hơn
+- ✅ **Cập nhật risk management**: Tăng max_signals_per_hour lên 6 để phù hợp với số lượng chiến thuật
+
+### **Version 2.2: Clean Code & Optimization**
+- ✅ **Làm sạch source code**: Loại bỏ imports và code dư thừa
+- ✅ **Cải tiến error handling**: Thêm try-catch và logging tốt hơn
+- ✅ **Tối ưu hóa performance**: Sử dụng strategy mapping thay vì if-elif
+- ✅ **Cải tiến Telegram**: Thêm parse_mode Markdown và error handling
+- ✅ **Cải tiến data fetcher**: Tối ưu hóa việc convert numeric data
+- ✅ **Xóa code không cần thiết**: Loại bỏ models/strategy_selector.py và test files
+- ✅ **Cập nhật documentation**: Cải tiến comments và docstrings
 
 ### **Version 3.0 (Coming Soon): AI & Machine Learning**
 - ✅ **AI chọn chiến lược**: Dùng XGBoost để chọn chiến lược tốt nhất theo thị trường
