@@ -30,11 +30,10 @@ from utils.risk_manager import RiskManager
 from dashboard.app import bot_status, log, emit_update, socketio
 
 # Import strategies
-from strategies.supertrend_rsi import supertrend_rsi_strategy as strategy_bollinger_bounce
-from strategies.ema_vwap_rsi import ema_vwap_rsi_strategy as strategy_rsi_divergence
-from strategies.trend_momentum_volume import trend_momentum_volume_strategy as strategy_supertrend_atr
-from strategies.breakout_volume_sr import breakout_volume_sr_strategy as strategy_macd_signal
-from strategies.multi_timeframe import multi_timeframe_strategy as strategy_multi_timeframe
+from strategies.ema_vwap_rsi import ema_vwap_rsi_strategy as strategy_ema_vwap
+from strategies.supertrend_rsi import supertrend_rsi_strategy as strategy_supertrend_atr
+from strategies.trend_momentum_volume import trend_momentum_volume_strategy as strategy_trend_momentum
+from strategies.breakout_volume_sr import breakout_volume_sr_strategy as strategy_breakout_volume
 
 print(f"🚀 Bot Tín Hiệu Binance Futures (Cải Tiến) khởi động lúc {datetime.now()}")
 
@@ -96,11 +95,9 @@ class TradingBot:
         # Strategy mapping
         strategy_map = {
             "EMA_VWAP": strategy_ema_vwap,
-            "RSI_DIVERGENCE": strategy_rsi_divergence,
             "SUPERTREND_ATR": strategy_supertrend_atr,
-            "MACD_SIGNAL": strategy_macd_signal,
-            "BOLLINGER_BOUNCE": strategy_bollinger_bounce,
-            "MULTI_TIMEFRAME": strategy_multi_timeframe
+            "TREND_MOMENTUM": strategy_trend_momentum,
+            "BREAKOUT_VOLUME": strategy_breakout_volume
         }
         
         try:

@@ -47,3 +47,5 @@ data/
 # Biểu đồ tạm
 chart.png
 chart_signal.png
+
+backtest/
