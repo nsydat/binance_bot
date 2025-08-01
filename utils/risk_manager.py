@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 class RiskManager:
     def __init__(self):
         self.signal_history = []
-        self.max_signals_per_hour = 6  # Cập nhật theo số chiến thuật
+        self.max_signals_per_hour = 5  # Cập nhật theo số chiến thuật
         self.max_drawdown = 10  # % (nếu có theo dõi PnL)
         self.initial_balance = 1000
         self.current_balance = 1000

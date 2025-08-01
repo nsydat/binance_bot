@@ -9,16 +9,16 @@ from datetime import datetime, timedelta
 from utils.data_fetcher import get_klines_df
 from strategies.ema_vwap_rsi import ema_vwap_rsi_strategy as strategy_ema_vwap
 from strategies.supertrend_rsi import supertrend_rsi_strategy as strategy_supertrend_atr
-from strategies.trend_momentum_volume import trend_momentum_volume_strategy as strategy_macd_signal
-from strategies.breakout_volume_sr import breakout_volume_sr_strategy as strategy_bollinger_bounce
+from strategies.trend_momentum_volume import trend_momentum_volume_strategy as strategy_trend_momentum
+from strategies.breakout_volume_sr import breakout_volume_sr_strategy as strategy_breakout_volume
 from strategies.multi_timeframe import multi_timeframe_strategy as strategy_multi_timeframe
 
 # Strategy mapping
 STRATEGIES = {
     "EMA_VWAP": strategy_ema_vwap,
     "SUPERTREND_ATR": strategy_supertrend_atr,
-    "MACD_SIGNAL": strategy_macd_signal,
-    "BOLLINGER_BOUNCE": strategy_bollinger_bounce,
+    "TREND_MOMENTUM": strategy_trend_momentum,
+    "BREAKOUT_VOLUME": strategy_breakout_volume,
     "MULTI_TIMEFRAME": strategy_multi_timeframe
 }
 

@@ -12,13 +12,12 @@ Dùng để:
 ## 📦 Tính năng chính
 
 - ✅ Quét nhiều cặp: `BTCUSDT`, `ETHUSDT`, `DOGEUSDT`, `XRPUSDT`
-- ✅ 6 chiến lược hiệu quả:
+- ✅ 5 chiến lược hiệu quả:
   - **EMA + VWAP + RSI**: Theo xu hướng ổn định với xác nhận RSI
   - **Supertrend + RSI**: Bắt trend mạnh với RSI quá mua/bán
   - **Trend + Momentum + Volume**: Kết hợp xu hướng, động lượng và khối lượng
   - **Breakout + Volume + S/R**: Phát hiện breakout với xác nhận khối lượng
   - **Multi-Timeframe**: Chiến lược đa khung thời gian với weighted voting
-  - **Bollinger Bounce**: Giao dịch ngược khi quá mức (dự phòng)
 - ✅ Đa khung thời gian: Xác nhận tín hiệu từ khung lớn hơn
 - ✅ Quản lý rủi ro: Giới hạn tín hiệu/giờ, khoảng cách giữa tín hiệu
 - ✅ Phân tích thị trường: Tự động nhận diện xu hướng, volatility, volume

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 class SignalManager:
     def __init__(self):
         self.sent_signals = []
-        self.max_signals_per_hour = 6  # Cập nhật theo số chiến thuật
+        self.max_signals_per_hour = 5  # Cập nhật theo số chiến thuật
         self.min_signal_gap = timedelta(minutes=15)
 
     def should_send_signal(self, new_signal):
