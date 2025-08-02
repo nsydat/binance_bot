@@ -6,11 +6,45 @@
     "max_signals_per_hour": 5,
     "min_signal_gap_minutes": 15,
     "enable_multi_timeframe": true,
-    "confirmation_required": true
+    "confirmation_required": true,
+    "max_risk_percent": 1.0,
+    "max_daily_drawdown": -5.0,
+    "max_drawdown": -15.0,
+    "max_daily_loss": -3.0,
+    "max_consecutive_losses": 5,
+    "signal_quality_threshold": 0.6,
+    "max_signals_per_symbol": 2,
+    "enable_volatility_adjustment": true,
+    "enable_win_rate_adjustment": true,
+    "enable_correlation_check": true,
+    "enable_market_condition_check": true
+  },
+  "adaptive_system": {
+    "enable_adaptive_strategies": true,
+    "enable_adaptive_rr_ratio": true,
+    "enable_adaptive_sl_tp": true,
+    "enable_performance_optimization": true,
+    "volatility_regimes": {
+      "LOW": {"min": 0, "max": 0.02, "rr_ratio": 1.5, "sl_multiplier": 1.0},
+      "MEDIUM": {"min": 0.02, "max": 0.05, "rr_ratio": 2.0, "sl_multiplier": 1.2},
+      "HIGH": {"min": 0.05, "max": 0.10, "rr_ratio": 2.5, "sl_multiplier": 1.5},
+      "EXTREME": {"min": 0.10, "max": 999, "rr_ratio": 3.0, "sl_multiplier": 2.0}
+    },
+    "market_regime_strategies": {
+      "BULLISH_TRENDING": ["EMA_VWAP", "SUPERTREND_ATR", "TREND_MOMENTUM"],
+      "BEARISH_TRENDING": ["EMA_VWAP", "SUPERTREND_ATR", "TREND_MOMENTUM"],
+      "VOLATILE": ["BREAKOUT_VOLUME", "MULTI_TIMEFRAME", "TREND_MOMENTUM"],
+      "SIDEWAYS": ["EMA_VWAP", "MULTI_TIMEFRAME"],
+      "CONSOLIDATION": ["EMA_VWAP", "MULTI_TIMEFRAME"]
+    },
+    "performance_history_size": 1000,
+    "optimization_threshold": 50
   },
   "performance": {
     "data_cache_minutes": 2,
     "parallel_strategy_execution": true,
-    "adaptive_parameters": true
+    "adaptive_parameters": true,
+    "enable_signal_history": true,
+    "enable_risk_logging": true
   }
 }
